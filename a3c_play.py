@@ -1,21 +1,5 @@
 # coding: utf-8
 
-# # Simple Reinforcement Learning with Tensorflow Part 8: Asynchronus Advantage Actor-Critic (A3C)
-#
-# This iPython notebook includes an implementation of the [A3C algorithm](https://arxiv.org/pdf/1602.01783.pdf). In it we use A3C to solve a simple 3D Doom challenge using the [VizDoom engine](http://vizdoom.cs.put.edu.pl/). For more information on A3C, see the accompanying [Medium post](https://medium.com/p/c88f72a5e9f2/edit).
-#
-# This tutorial requires that VizDoom is installed. It can be easily obtained with:
-#
-# `pip install vizdoom`
-#
-# We also require `basic.wad` and `helper.py`, both of which are available from the [DeepRL-Agents github repo](https://github.com/awjuliani/DeepRL-Agents).
-#
-# While training is taking place, statistics on agent performance are available from Tensorboard. To launch it use:
-#
-# `tensorboard --logdir=worker_0:'./train_0',worker_1:'./train_1',worker_2:'./train_2',worker_3:'./train_3'`
-
-# In[ ]:
-
 import gym
 import os
 import threading
@@ -224,8 +208,6 @@ class Worker():
         with sess.as_default(), sess.graph.as_default():
             while not coord.should_stop():
                 sess.run(self.update_local_ops)
-                episode_buffer = []
-                episode_values = []
                 episode_reward = 0
                 episode_step_count = 0
                 if done:
@@ -235,7 +217,7 @@ class Worker():
                 rnn_state = self.local_AC.state_init
                 reward = 0.0
                 while (reward == 0.0):
-                    # self.env.render()
+                    self.env.render()
                     # Take an action using probabilities from policy network output.
                     a_dist, value, rnn_state = sess.run(
                         [self.local_AC.policy, self.local_AC.value, self.local_AC.state_out],
@@ -245,49 +227,17 @@ class Worker():
                     action, env_action = self.sample(a_dist[0])
                     observation, reward, done, info = self.env.step(env_action)
                     state1 = preprocess(observation)
-                    episode_buffer.append([state, action, reward, state1, done, value[0, 0]])
-                    episode_values.append(value[0, 0])
                     episode_reward += reward
-                    # if reward != 0.0:
-                    #     logger.debug('%s episode: %d, action: %d, %d, reward: %d, done: %r' % (self.name, local_episode_count, action, env_action, reward, done))
                     reward_sum += reward
                     total_steps += 1
                     episode_step_count += 1
                     state = state1
 
-                self.episode_rewards.append(episode_reward)
-                self.episode_lengths.append(episode_step_count)
-                self.episode_mean_values.append(np.mean(episode_values))
-
-                # Update the network using the experience buffer at the end of the episode.
-                if len(episode_buffer) != 0:
-                    v_l, p_l, e_l, g_n, v_n = self.train(episode_buffer, sess, gamma, 0.0)
-
-                # Periodically save gifs of episodes, model parameters, and summary statistics.
                 if local_episode_count % EPISODE_BATCH_SIZE == (EPISODE_BATCH_SIZE - 1):
-                    mean_reward = np.mean(self.episode_rewards[-5:])
-                    mean_length = np.mean(self.episode_lengths[-5:])
-                    mean_value = np.mean(self.episode_mean_values[-5:])
-                    summary = tf.Summary()
-                    summary.value.add(tag='Perf/Reward', simple_value=float(mean_reward))
-                    summary.value.add(tag='Perf/Length', simple_value=float(mean_length))
-                    summary.value.add(tag='Perf/Value', simple_value=float(mean_value))
-                    summary.value.add(tag='Losses/Value Loss', simple_value=float(v_l))
-                    summary.value.add(tag='Losses/Policy Loss', simple_value=float(p_l))
-                    summary.value.add(tag='Losses/Entropy', simple_value=float(e_l))
-                    summary.value.add(tag='Losses/Grad Norm', simple_value=float(g_n))
-                    summary.value.add(tag='Losses/Var Norm', simple_value=float(v_n))
-                    self.summary_writer.add_summary(summary, local_episode_count)
-                    self.summary_writer.flush()
                     logger.warn('%s, episode %d, average reward %f' % (self.name, local_episode_count, reward_sum / EPISODE_BATCH_SIZE))
-                    if reward_sum > 0:
-                        logger.warn('%s task solved in %d episodes!' % (self.name, local_episode_count))
+                    # if reward_sum > 0:
+                    #     logger.warn('%s task solved in %d episodes!' % (self.name, local_episode_count))
                     reward_sum = 0
-
-                if local_episode_count % SAVE_INTERVAL == (SAVE_INTERVAL - 1) and self.name == 'worker_0':
-                    logger.warn('save model at epoch %d' % (local_episode_count))
-                    ckpt_file = os.path.join(self.model_path, 'a3c_tennis')
-                    saver.save(sess, ckpt_file, (local_episode_count + 1) / SAVE_INTERVAL)
 
                 if self.name == 'worker_0':
                     sess.run(self.increment)
@@ -325,8 +275,7 @@ with tf.device("/cpu:0"):
     global_episodes = tf.Variable(0, dtype=tf.int32, name='global_episodes', trainable=False)
     trainer = tf.train.AdamOptimizer(learning_rate=1e-4)
     master_network = AC_Network(s_size, a_size, 'global', None)  # Generate global network
-    num_workers = multiprocessing.cpu_count()  # Set workers ot number of available CPU threads
-    # num_workers = 2
+    num_workers = 1
     workers = []
     # Create worker classes
     for i in range(num_workers):
@@ -335,15 +284,11 @@ with tf.device("/cpu:0"):
 
 with tf.Session() as sess:
     coord = tf.train.Coordinator()
-    if load_model == True:
-        logger.warn ('Loading Model...')
-        ckpt = tf.train.get_checkpoint_state(MODEL_PATH)
-        saver.restore(sess, ckpt.model_checkpoint_path)
-    else:
-        sess.run(tf.global_variables_initializer())
 
-    # This is where the asynchronous magic happens.
-    # Start the "work" process for each worker in a separate threat.
+    logger.warn ('Loading Model...')
+    ckpt = tf.train.get_checkpoint_state(MODEL_PATH)
+    saver.restore(sess, ckpt.model_checkpoint_path)
+
     worker_threads = []
     for worker in workers:
         worker_work = lambda: worker.work(max_episode_length, gamma, sess, coord, saver)
