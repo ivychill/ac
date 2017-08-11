@@ -165,6 +165,7 @@ class Worker():
         self.actions = np.identity(a_size, dtype=bool).tolist()
 
         self.env = gym.make("Tennis-v0")
+        self.env = gym.wrappers.Monitor(self.env, '/tmp/cartpole-experiment-1')
 
     def train(self, rollout, sess, gamma, bootstrap_value):
         rollout = np.array(rollout)
@@ -303,6 +304,7 @@ load_model = False
 MODEL_PATH = './model'
 SUMMARY_PATH = './summary/train_'
 LOG_PATH = './log'
+DUMP_PATH = './'
 MAX_LOG_SIZE = 2560000
 LOG_BACKUP_NUM = 4000
 EPISODE_BATCH_SIZE = 100
