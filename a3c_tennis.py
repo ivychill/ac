@@ -165,7 +165,7 @@ class Worker():
         self.actions = np.identity(a_size, dtype=bool).tolist()
 
         self.env = gym.make("Tennis-v0")
-        self.env = gym.wrappers.Monitor(self.env, '/tmp/cartpole-experiment-1')
+        self.env = gym.wrappers.Monitor(self.env, DUMP_PATH)
 
     def train(self, rollout, sess, gamma, bootstrap_value):
         rollout = np.array(rollout)
@@ -300,11 +300,11 @@ max_episode_length = 300
 gamma = .99  # discount rate for advantage estimation and reward discounting
 s_size = 7056  # Observations are greyscale frames of 84 * 84 * 1
 a_size = 9  # Agent can move Left, Right, or Fire
-load_model = False
+load_model = True
 MODEL_PATH = './model'
 SUMMARY_PATH = './summary/train_'
 LOG_PATH = './log'
-DUMP_PATH = './'
+DUMP_PATH = './monitor'
 MAX_LOG_SIZE = 2560000
 LOG_BACKUP_NUM = 4000
 EPISODE_BATCH_SIZE = 100
