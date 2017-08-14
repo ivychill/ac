@@ -281,8 +281,10 @@ class Worker():
                     self.summary_writer.add_summary(summary, local_episode_count)
                     self.summary_writer.flush()
                     logger.warn('%s, episode %d, average reward %f' % (self.name, local_episode_count, reward_sum / EPISODE_BATCH_SIZE))
-                    if reward_sum > 0:
+                    if reward_sum / EPISODE_BATCH_SIZE >= 0.8:
                         logger.warn('%s task solved in %d episodes!' % (self.name, local_episode_count))
+                        gym.upload(DUMP_PATH, GYM_API_KEY)
+                        break;
                     reward_sum = 0
 
                 if local_episode_count % SAVE_INTERVAL == (SAVE_INTERVAL - 1) and self.name == 'worker_0':
@@ -305,6 +307,7 @@ MODEL_PATH = './model'
 SUMMARY_PATH = './summary/train_'
 LOG_PATH = './log'
 DUMP_PATH = './monitor'
+GYM_API_KEY = 'sk_QNnLeSDQR2xaclFbgEsqg'
 MAX_LOG_SIZE = 2560000
 LOG_BACKUP_NUM = 4000
 EPISODE_BATCH_SIZE = 100
@@ -337,7 +340,7 @@ with tf.device("/cpu:0"):
 
 with tf.Session() as sess:
     coord = tf.train.Coordinator()
-    if load_model == True:
+    if load_model == False:
         logger.warn ('Loading Model...')
         ckpt = tf.train.get_checkpoint_state(MODEL_PATH)
         saver.restore(sess, ckpt.model_checkpoint_path)
