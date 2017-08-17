@@ -229,13 +229,13 @@ class Worker():
                 episode_values = []
                 episode_reward = 0
                 episode_step_count = 0
+                rnn_state = self.local_AC.state_init
                 if done:
                     observation = self.env.reset()
                     state = preprocess(observation)
                     done = False
-                rnn_state = self.local_AC.state_init
                 reward = 0.0
-                while (reward == 0.0):
+                while (reward == 0.0 and (not done)):
                     # self.env.render()
                     # Take an action using probabilities from policy network output.
                     a_dist, value, rnn_state = sess.run(
@@ -283,6 +283,7 @@ class Worker():
                     logger.warn('%s, episode %d, average reward %f' % (self.name, local_episode_count, reward_sum / EPISODE_BATCH_SIZE))
                     if reward_sum / EPISODE_BATCH_SIZE >= 0.8:
                         logger.warn('%s task solved in %d episodes!' % (self.name, local_episode_count))
+                        self.env.close()
                         gym.upload(DUMP_PATH, GYM_API_KEY)
                         break;
                     reward_sum = 0
@@ -326,21 +327,21 @@ tf.reset_default_graph()
 if not os.path.exists(MODEL_PATH):
     os.makedirs(MODEL_PATH)
 
-with tf.device("/cpu:0"):
-    global_episodes = tf.Variable(0, dtype=tf.int32, name='global_episodes', trainable=False)
-    trainer = tf.train.AdamOptimizer(learning_rate=1e-4)
-    master_network = AC_Network(s_size, a_size, 'global', None)  # Generate global network
-    num_workers = multiprocessing.cpu_count()  # Set workers ot number of available CPU threads
-    # num_workers = 2
-    workers = []
-    # Create worker classes
-    for i in range(num_workers):
-        workers.append(Worker(i, s_size, a_size, trainer, MODEL_PATH, global_episodes))
-    saver = tf.train.Saver(max_to_keep=5)
+# with tf.device("/cpu:0"):
+global_episodes = tf.Variable(0, dtype=tf.int32, name='global_episodes', trainable=False)
+trainer = tf.train.AdamOptimizer(learning_rate=1e-4)
+master_network = AC_Network(s_size, a_size, 'global', None)  # Generate global network
+num_workers = multiprocessing.cpu_count()  # Set workers ot number of available CPU threads
+# num_workers = 1
+workers = []
+# Create worker classes
+for i in range(num_workers):
+    workers.append(Worker(i, s_size, a_size, trainer, MODEL_PATH, global_episodes))
+saver = tf.train.Saver(max_to_keep=5)
 
 with tf.Session() as sess:
     coord = tf.train.Coordinator()
-    if load_model == False:
+    if load_model == True:
         logger.warn ('Loading Model...')
         ckpt = tf.train.get_checkpoint_state(MODEL_PATH)
         saver.restore(sess, ckpt.model_checkpoint_path)
