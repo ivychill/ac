@@ -284,8 +284,8 @@ class Worker():
                     if reward_sum / EPISODE_BATCH_SIZE >= 0.8:
                         logger.warn('%s task solved in %d episodes!' % (self.name, local_episode_count))
                         self.env.close()
-                        gym.upload(DUMP_PATH, GYM_API_KEY)
-                        break;
+                        gym.upload(DUMP_PATH, api_key = GYM_API_KEY)
+                        os._exit(1)
                     reward_sum = 0
 
                 if local_episode_count % SAVE_INTERVAL == (SAVE_INTERVAL - 1) and self.name == 'worker_0':
@@ -331,8 +331,8 @@ if not os.path.exists(MODEL_PATH):
 global_episodes = tf.Variable(0, dtype=tf.int32, name='global_episodes', trainable=False)
 trainer = tf.train.AdamOptimizer(learning_rate=1e-4)
 master_network = AC_Network(s_size, a_size, 'global', None)  # Generate global network
-num_workers = multiprocessing.cpu_count()  # Set workers ot number of available CPU threads
-# num_workers = 1
+# num_workers = multiprocessing.cpu_count()  # Set workers ot number of available CPU threads
+num_workers = 12
 workers = []
 # Create worker classes
 for i in range(num_workers):
